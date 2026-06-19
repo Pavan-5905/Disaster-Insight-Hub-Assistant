@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disaster Insight Hub Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="hero">
+        <div class="hero__badge">Status · {{ hero_status }}</div>
+        <h1>Disaster Insight Hub Assistant</h1>
+        <p>A retrieval-augmented chatbot that understands crisis chatter, fetches trusted safety playbooks, and drafts calm guidance powered by Random Forest intelligence and the gpt-oss:120b-cloud model.</p>
+        <div class="hero__cta">
+            <a href="#assistant" class="btn primary">Chat with the Assistant</a>
+            <a href="#pipeline" class="btn ghost">See How it Works</a>
+        </div>
+        <div class="hero__stats">
+            <div>
+                <span class="stat__label">Messages Parsed</span>
+                <span class="stat__value">{{ metrics.records or 0 }}</span>
+            </div>
+            <div>
+                <span class="stat__label">Crisis Categories</span>
+                <span class="stat__value">{{ metrics.crisis_types or 0 }}</span>
+            </div>
+            <div>
+                <span class="stat__label">Knowledge Cards</span>
+                <span class="stat__value">{{ kb_docs }}</span>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="features" id="pipeline">
+            <article>
+                <h3>1 · Detect</h3>
+                <p>Existing Random Forest classifier instantly tags each message with the most likely crisis type and a lightweight location hint.</p>
+            </article>
+            <article>
+                <h3>2 · Retrieve</h3>
+                <p>TF-IDF + cosine similarity pulls the top safety briefs from the curated Excel knowledge base for that crisis.</p>
+            </article>
+            <article>
+                <h3>3 · Generate</h3>
+                <p>The retrieved context, user prompt, and crisis label flow into gpt-oss:120b-cloud via Ollama Cloud for a natural, empathetic response.</p>
+            </article>
+        </section>
+
+        <section class="assistant-panel" id="assistant">
+            <div class="section-header">
+                <h2>Live RAG Chat</h2>
+                <p>Ask for safety guidance during floods, quakes, wildfires, pandemics, and more. Responses cite the internal knowledge base and keep instructions actionable.</p>
+            </div>
+            <div class="assistant-grid">
+                <div class="chat-shell">
+                    <div id="chat-log" class="chat-log">
+                        <div class="chat-message assistant">
+                            <div class="chat-meta">Assistant</div>
+                            <p>Hi! I can help you stay safe during disasters. Ask anything like “What should I pack before a cyclone?”</p>
+                        </div>
+                    </div>
+                    <form id="assistant-form" autocomplete="off">
+                        <label for="query" class="visually-hidden">Ask something</label>
+                        <textarea id="query" name="query" rows="3" placeholder="Type your situation or question..."></textarea>
+                        <div class="form-actions">
+                            <button type="submit" class="btn primary full" id="send-btn">Send</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="insight-card">
+                    <h4>Latest Insight</h4>
+                    <p><span class="stat__label">Predicted Crisis</span> <strong id="insight-crisis">–</strong></p>
+                    <p><span class="stat__label">Location Hint</span> <strong id="insight-location">–</strong></p>
+                    <div id="retrieval-panel">
+                        <h5>Retrieved Playbook</h5>
+                        <ul id="retrieval-list">
+                            <li class="muted">No guidance yet – start chatting.</li>
+                        </ul>
+                        <small class="muted">Context is sourced from safety_guidelines.xlsx</small>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="insights">
+            <div>
+                <h3>Operational confidence</h3>
+                <p>All predictions leverage the same pipeline that powers your crisis dashboards, so confidence scoring and telemetry remain consistent across surfaces.</p>
+            </div>
+            <div>
+                <h3>Top Locations (Sample)</h3>
+                <ul>
+                    {% for city in metrics.top_locations %}
+                    <li>{{ city }}</li>
+                    {% else %}
+                    <li>Dataset not loaded</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Disaster Insight Hub Assistant · Flask · scikit-learn · spaCy · Ollama</p>
+        <small>&copy; {{ 2025 }}</small>
+    </footer>
+
+    <script>
+        const form = document.querySelector('#assistant-form');
+        const chatLog = document.querySelector('#chat-log');
+        const sendBtn = document.querySelector('#send-btn');
+        const insightCrisis = document.querySelector('#insight-crisis');
+        const insightLocation = document.querySelector('#insight-location');
+        const retrievalList = document.querySelector('#retrieval-list');
+
+        const appendMessage = (role, text) => {
+            const wrapper = document.createElement('div');
+            wrapper.classList.add('chat-message', role === 'user' ? 'user' : 'assistant');
+
+            const meta = document.createElement('div');
+            meta.classList.add('chat-meta');
+            meta.textContent = role === 'user' ? 'You' : 'Assistant';
+
+            const body = document.createElement('p');
+            body.textContent = text;
+
+            wrapper.appendChild(meta);
+            wrapper.appendChild(body);
+            chatLog.appendChild(wrapper);
+            chatLog.scrollTop = chatLog.scrollHeight;
+        };
+
+        const renderGuidance = (items = []) => {
+            retrievalList.innerHTML = '';
+            if (!items.length) {
+                retrievalList.innerHTML = '<li class="muted">No guidance retrieved.</li>';
+                return;
+            }
+            items.forEach(item => {
+                const li = document.createElement('li');
+                li.innerHTML = `<strong>${item.title || 'Guidance'}</strong><br>${item.advice}`;
+                retrievalList.appendChild(li);
+            });
+        };
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const text = form.query.value.trim();
+            if (!text) {
+                alert('Please enter a question or observation.');
+                return;
+            }
+
+            appendMessage('user', text);
+            form.query.value = '';
+
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Thinking...';
+
+            try {
+                const response = await fetch('{{ assistant_url }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: text })
+                });
+
+                const payload = await response.json();
+                if (!response.ok) {
+                    throw new Error(payload.error || 'Assistant failed.');
+                }
+
+                appendMessage('assistant', payload.assistant_reply);
+                insightCrisis.textContent = payload.crisis_type;
+                insightLocation.textContent = payload.location_hint;
+                renderGuidance(payload.guidance || []);
+
+                if (payload.llm_error) {
+                    appendMessage('assistant', `Note: Fell back to template guidance (${payload.llm_error}).`);
+                }
+            } catch (error) {
+                appendMessage('assistant', error.message || 'Unexpected error occurred.');
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send';
+            }
+        });
+    </script>
+</body>
+</html>
