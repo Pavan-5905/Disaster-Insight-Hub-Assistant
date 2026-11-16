@@ -194,7 +194,7 @@ def build_assistant_messages(user_query: str, crisis_type: str, guidance: List[D
 
 
 def get_ollama_client():
-    api_key = os.environ.get("OLLAMA_API_KEY")
+    api_key = os.environ.get("OLLAMA_API_KEY","YOUR_OLLAMA_API_KEY")
     if not api_key:
         return None, "OLLAMA_API_KEY missing."
     headers = {"Authorization": f"Bearer {api_key}"}
