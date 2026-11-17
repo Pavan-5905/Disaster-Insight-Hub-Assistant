@@ -13,7 +13,7 @@
     <header class="hero">
         <div class="hero__badge">Status · {{ hero_status }}</div>
         <h1>Disaster Insight Hub Assistant</h1>
-        <p>A retrieval-augmented chatbot that understands crisis chatter, fetches trusted safety playbooks, and drafts calm guidance powered by Random Forest intelligence and the gpt-oss:120b-cloud model.</p>
+        <p>A retrieval-augmented chatbot that understands crisis chatter, fetches trusted safety playbooks, and drafts calm guidance powered by Random Forest intelligence and Groq-powered GPT-OSS 120B.</p>
         <div class="hero__cta">
             <a href="#assistant" class="btn primary">Chat with the Assistant</a>
             <a href="#pipeline" class="btn ghost">See How it Works</a>
@@ -46,7 +46,7 @@
             </article>
             <article>
                 <h3>3 · Generate</h3>
-                <p>The retrieved context, user prompt, and crisis label flow into gpt-oss:120b-cloud via Ollama Cloud for a natural, empathetic response.</p>
+                <p>The retrieved context, user prompt, and crisis label are sent to GPT-OSS 120B through the Groq API for a natural, empathetic response.</p>
             </article>
         </section>
 
@@ -57,7 +57,7 @@
             </div>
             <div class="assistant-grid">
                 <div class="chat-shell">
-                    <div id="chat-log" class="chat-log">
+                    <div id="chat-log" class="chat-log" aria-live="polite">
                         <div class="chat-message assistant">
                             <div class="chat-meta">Assistant</div>
                             <p>Hi! I can help you stay safe during disasters. Ask anything like “What should I pack before a cyclone?”</p>
@@ -105,12 +105,13 @@
     </main>
 
     <footer>
-        <p>Disaster Insight Hub Assistant · Flask · scikit-learn · spaCy · Ollama</p>
-        <small>&copy; {{ 2025 }}</small>
+        <p>Disaster Insight Hub Assistant · Flask · scikit-learn · spaCy · Groq API</p>
+        <small>&copy; {{ 2026 }}</small>
     </footer>
 
     <script>
         const form = document.querySelector('#assistant-form');
+        const queryInput = document.querySelector('#query');
         const chatLog = document.querySelector('#chat-log');
         const sendBtn = document.querySelector('#send-btn');
         const insightCrisis = document.querySelector('#insight-crisis');
@@ -142,22 +143,38 @@
             }
             items.forEach(item => {
                 const li = document.createElement('li');
-                li.innerHTML = `<strong>${item.title || 'Guidance'}</strong><br>${item.advice}`;
+                const title = document.createElement('strong');
+                title.textContent = item.title || 'Guidance';
+                li.appendChild(title);
+                li.appendChild(document.createElement('br'));
+                li.appendChild(document.createTextNode(item.advice || ''));
                 retrievalList.appendChild(li);
             });
         };
 
+        // Enter sends the message; Shift+Enter inserts a newline. No shortcut
+        // instructions are displayed in or below the textarea.
+        queryInput.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' || event.shiftKey || event.isComposing) {
+                return;
+            }
+
+            event.preventDefault();
+            if (!sendBtn.disabled) {
+                form.requestSubmit();
+            }
+        });
+
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
-            const text = form.query.value.trim();
+            const text = queryInput.value.trim();
             if (!text) {
-                alert('Please enter a question or observation.');
+                queryInput.focus();
                 return;
             }
 
             appendMessage('user', text);
-            form.query.value = '';
-
+            queryInput.value = '';
             sendBtn.disabled = true;
             sendBtn.textContent = 'Thinking...';
 
@@ -173,9 +190,9 @@
                     throw new Error(payload.error || 'Assistant failed.');
                 }
 
-                appendMessage('assistant', payload.assistant_reply);
-                insightCrisis.textContent = payload.crisis_type;
-                insightLocation.textContent = payload.location_hint;
+                appendMessage('assistant', payload.assistant_reply || 'I could not generate a response.');
+                insightCrisis.textContent = payload.crisis_type || 'Unknown';
+                insightLocation.textContent = payload.location_hint || 'Unknown';
                 renderGuidance(payload.guidance || []);
 
                 if (payload.llm_error) {
@@ -186,6 +203,7 @@
             } finally {
                 sendBtn.disabled = false;
                 sendBtn.textContent = 'Send';
+                queryInput.focus();
             }
         });
     </script>

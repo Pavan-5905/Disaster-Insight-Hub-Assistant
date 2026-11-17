@@ -1,8 +1,8 @@
 Flask
+groq
 pandas
 numpy
 scikit-learn
 joblib
 spacy
 openpyxl
-ollama
